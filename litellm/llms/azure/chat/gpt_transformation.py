@@ -120,19 +120,16 @@ class AzureOpenAIConfig(BaseConfig):
 
         return False
 
-    def _is_response_format_supported_api_version(
-        self, api_version_year: str, api_version_month: str
-    ) -> bool:
+    def _is_response_format_supported_api_version(self, api_version_year: str, api_version_month: str) -> bool:
         """
         - check if api_version is supported for response_format
+        https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/structured-outputs?tabs=python-secure%2Cdotnet-entra-id&pivots=programming-language-csharp#api-support
         """
-
-        is_supported = (
-            int(api_version_year) <= API_VERSION_YEAR_SUPPORTED_RESPONSE_FORMAT
-            and int(api_version_month) >= API_VERSION_MONTH_SUPPORTED_RESPONSE_FORMAT
-        )
-
-        return is_supported
+        year = int(api_version_year)
+        month = int(api_version_month)
+        return (
+            year == API_VERSION_YEAR_SUPPORTED_RESPONSE_FORMAT and month >= API_VERSION_MONTH_SUPPORTED_RESPONSE_FORMAT
+        ) or year > API_VERSION_YEAR_SUPPORTED_RESPONSE_FORMAT
 
     def map_openai_params(
         self,
@@ -159,15 +156,9 @@ class AzureOpenAIConfig(BaseConfig):
                 if (
                     api_version_year < "2023"
                     or (api_version_year == "2023" and api_version_month < "12")
-                    or (
-                        api_version_year == "2023"
-                        and api_version_month == "12"
-                        and api_version_day < "01"
-                    )
+                    or (api_version_year == "2023" and api_version_month == "12" and api_version_day < "01")
                 ):
-                    if litellm.drop_params is True or (
-                        drop_params is not None and drop_params is True
-                    ):
+                    if litellm.drop_params is True or (drop_params is not None and drop_params is True):
                         pass
                     else:
                         raise UnsupportedParamsError(
@@ -177,9 +168,7 @@ class AzureOpenAIConfig(BaseConfig):
                 elif value == "required" and (
                     api_version_year == "2024" and api_version_month <= "05"
                 ):  ## check if tool_choice value is supported ##
-                    if litellm.drop_params is True or (
-                        drop_params is not None and drop_params is True
-                    ):
+                    if litellm.drop_params is True or (drop_params is not None and drop_params is True):
                         pass
                     else:
                         raise UnsupportedParamsError(
@@ -189,18 +178,13 @@ class AzureOpenAIConfig(BaseConfig):
                 else:
                     optional_params["tool_choice"] = value
             elif param == "response_format" and isinstance(value, dict):
-                _is_response_format_supported_model = (
-                    self._is_response_format_supported_model(model)
-                )
+                _is_response_format_supported_model = self._is_response_format_supported_model(model)
 
-                is_response_format_supported_api_version = (
-                    self._is_response_format_supported_api_version(
-                        api_version_year, api_version_month
-                    )
+                is_response_format_supported_api_version = self._is_response_format_supported_api_version(
+                    api_version_year, api_version_month
                 )
                 is_response_format_supported = (
-                    is_response_format_supported_api_version
-                    and _is_response_format_supported_model
+                    is_response_format_supported_api_version and _is_response_format_supported_model
                 )
                 optional_params = self._add_response_format_to_tools(
                     optional_params=optional_params,
@@ -280,12 +264,8 @@ class AzureOpenAIConfig(BaseConfig):
             "westus4",
         ]
 
-    def get_error_class(
-        self, error_message: str, status_code: int, headers: Union[dict, Headers]
-    ) -> BaseLLMException:
-        return AzureOpenAIError(
-            message=error_message, status_code=status_code, headers=headers
-        )
+    def get_error_class(self, error_message: str, status_code: int, headers: Union[dict, Headers]) -> BaseLLMException:
+        return AzureOpenAIError(message=error_message, status_code=status_code, headers=headers)
 
     def validate_environment(
         self,
